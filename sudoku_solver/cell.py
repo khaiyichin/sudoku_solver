@@ -22,5 +22,9 @@ class Cell:
     def set_value(self, value):
         self._val = int(value)
 
+    def set_value_prob(self, value, prob):
+        # Remove 1 off the value to convert it into index
+        self._prob[value-1] = prob
+
     def get_prob_array(self):
         return self._prob

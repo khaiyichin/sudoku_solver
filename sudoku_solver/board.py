@@ -6,6 +6,10 @@ from column import Column
 
 '''
 TODO:
+1. Now that we have the first evaluation of the probabilities, we need to update the board with the newfound values.
+2. After updating, repeat evaluation.
+3. Repeat update again, and then repeat until the cached_board stays the same.
+4. At this point we will need to integrate some strategies.
 '''
 
 class Board(object):
@@ -26,6 +30,8 @@ class Board(object):
         self._grid_dim = ( int(np.sqrt(self._n)), int(np.sqrt(self._n)) )
         self._row_dim = (1, self._n)
         self._col_dim = (self._n, 1)
+        self._complete_vals = np.full(self._n, False) # array to keep track of whether the board has filled up all instances of a particular value
+        self._converged_prob = np.full(self._n, False)
 
         # Initialize board groups
         self._grids = np.array( [ [ Grid(self._grid_dim[0]) for _ in range(self._grid_dim[0]) ] for _ in range(self._grid_dim[1]) ] )
@@ -285,3 +291,46 @@ class Board(object):
                 board_prob[i][j] = self._cells[i][j].get_value_prob(value)
 
         return board_prob
+
+    def evaluate(self): # incomplete
+
+        tracker = 0
+
+        while not np.all(self._converged_prob):
+
+            # Iterate over all possible values
+            for val in range(1, self._n+1):
+                
+                # If a particular value has been completely filled, move on
+                if self._complete_vals[val-1]:
+                    self._converged_prob[val-1] = True
+                    continue
+
+                # Evaluate the probabilites of a value
+                self.evaluate_value_prob(val)
+
+                # Check whether a value has been completely filled
+                if np.count_nonzero(self._cached_prob[val-1]) == self._n:
+                    self._complete_vals[val-1] = True
+                    self._converged_prob[val-1] = True
+
+                # Update the board probabilty cache if probabilities not yet converged
+                prob_arr = self.get_value_prob(val)
+
+                # Check convergence; the probabilities should match up to the maximum number of occurences of a particular value
+                if (prob_arr == self._cached_prob[val-1]).all():
+                    self._converged_prob[val-1] = True
+                else:
+                    self._cached_prob[val-1] = prob_arr
+
+    def evaluate_value_prob(self, value): # incomplete
+        
+        # Evaluate the probabilities for a particular value
+        for i in range(self._grid_dim[0]):
+            for j in range(self._grid_dim[1]):
+                self._grids[i][j].evaluate_value_prob(value)
+                # print('intermediate', i, j, value, self.get_value_prob(value))
+                self._rows[self._grid_dim[0]*i + j][0].evaluate_value_prob(value)
+                # print('intermediate', i, j, value, self.get_value_prob(value))
+                self._columns[0][self._grid_dim[0]*i + j].evaluate_value_prob(value)
+                # print('intermediate', i, j, value, self.get_value_prob(value))
