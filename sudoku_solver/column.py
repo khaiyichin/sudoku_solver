@@ -43,15 +43,17 @@ class Column(object):
         prob_arr = self.get_value_prob(value)
 
         # Get the number of unknowns in the grid
+        # While this would also include instances of 1.0 in the array,
+        # the if loop below doesn't use it if 1.0 is encountered
         unknowns = float(np.count_nonzero(prob_arr != 0.0))
 
-        if 1.0 in prob_arr: # value exists in the column already
+        # Check if value exists in column
+        if 1.0 in prob_arr:
             for i in range(self._n):
                 if self._cells[i][0].get_value_prob(value) != 1.0:
                     self._cells[i][0].set_value_prob(value, 0.0)
 
             self._complete_vals[value-1] = True
-
         else: # value doesn't exist in the column
             for i in range(self._n):
                 if self._cells[i][0].get_value_prob(value) != 0.0:

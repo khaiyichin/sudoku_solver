@@ -1,4 +1,5 @@
 import numpy as np
+import time
 from grid import Grid
 from cell import Cell
 from row import Row
@@ -6,10 +7,13 @@ from column import Column
 
 '''
 TODO:
-1. Now that we have the first evaluation of the probabilities, we need to update the board with the newfound values.
-2. After updating, repeat evaluation.
-3. Repeat update again, and then repeat until the cached_board stays the same.
-4. At this point we will need to integrate some strategies.
+- Solution doesn't work for the 'evil' stage of websudoku!
+- extract board for each solve step to see how to improve solver and solve 'evil' stage.
+- for the DEBUG prints, need to have a try catch maybe? at least a termination and error message
+- find out why are we doing Cell.check_and_reset_probability() if the probs get reset already?
+- create a .md to explain the reshape formulas
+- documentation and styling
+- populate_board is incomplete
 '''
 
 class Board(object):
@@ -60,7 +64,7 @@ class Board(object):
 
     def split_cells(self, split_into): # complete; perhaps think about adding the explanation below to a .md file
         '''
-            The reshape formula is obtained from 
+            This split_cells solution is obtained from 
             https://stackoverflow.com/a/16858283
 
             Explanation of the code:
@@ -292,9 +296,7 @@ class Board(object):
 
         return board_prob
 
-    def evaluate(self): # incomplete
-
-        tracker = 0
+    def evaluate(self): # may be incomplete, since solver is not robust enough
 
         while not np.all(self._converged_prob):
 
@@ -302,17 +304,12 @@ class Board(object):
             for val in range(1, self._n+1):
                 
                 # If a particular value has been completely filled, move on
-                if self._complete_vals[val-1]:
+                if self._complete_vals[val-1] or np.mean(self._cached_prob[val-1]) == 1.0:
                     self._converged_prob[val-1] = True
                     continue
 
                 # Evaluate the probabilites of a value
                 self.evaluate_value_prob(val)
-
-                # Check whether a value has been completely filled
-                if np.count_nonzero(self._cached_prob[val-1]) == self._n:
-                    self._complete_vals[val-1] = True
-                    self._converged_prob[val-1] = True
 
                 # Update the board probabilty cache if probabilities not yet converged
                 prob_arr = self.get_value_prob(val)
@@ -323,7 +320,12 @@ class Board(object):
                 else:
                     self._cached_prob[val-1] = prob_arr
 
-    def evaluate_value_prob(self, value): # incomplete
+        # Perform validity check for each cell
+        for cell_row in self._cells:
+            for cell in cell_row:
+                cell.check_and_reset_probability()
+
+    def evaluate_value_prob(self, value): # complete
         
         # Evaluate the probabilities for a particular value
         for i in range(self._grid_dim[0]):
@@ -334,3 +336,49 @@ class Board(object):
                 # print('intermediate', i, j, value, self.get_value_prob(value))
                 self._columns[0][self._grid_dim[0]*i + j].evaluate_value_prob(value)
                 # print('intermediate', i, j, value, self.get_value_prob(value))
+
+    def update(self): # may be incomplete since solver is not robust enough
+        
+        # Track any updates
+        updated = False
+
+        # Go through all the cells
+        for i in range(self._board_dim[0]):
+            for j in range(self._board_dim[0]):
+                # Only assign if the value is unfilled and there's a confirmed value in the cell
+                if (self._cells[i][j].get_value() == 0):
+                    prob_array = self._cells[i][j].get_prob_array()
+                    
+                    # Fill in the value if there's a 100% probability
+                    if 1 in prob_array:
+                        self._cells[i][j].set_value(np.nonzero(prob_array == 1)[0][0] + 1)
+                        
+                        # If there's at least on number updated, then there's change to the board
+                        if not updated: updated = True
+
+        # Reset self._converged_prob after updating if there are still unfilled values        
+        for ind in range(self._n):
+            if np.count_nonzero(self.get_values() == ind+1) < self._n:
+                self._converged_prob[ind] = False
+            else: # declare the search for that value complete
+                self._complete_vals[ind] = True
+
+        return updated
+
+    def solve_board(self): # should be complete
+        
+        start_time = time.perf_counter()
+        while not np.all(self._complete_vals):
+            
+            # Evaluate probabilities
+            self.evaluate()
+
+            # Update board
+            if not self.update():
+                end_time = time.perf_counter()
+                print('DEBUG Cannot solve board in ' + str(end_time - start_time) + 's.')
+                return
+
+        end_time = time.perf_counter()
+        print('Board solved in ' + str(end_time - start_time) + 's!')
+        return

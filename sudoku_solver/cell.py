@@ -28,3 +28,14 @@ class Cell:
 
     def get_prob_array(self):
         return self._prob
+
+    def check_and_reset_probability(self):
+        confirmed_num = np.count_nonzero(self._prob == 1.0)
+        if confirmed_num > 1: print('ERROR! Cell has more than one value according to its probability array.')
+        elif confirmed_num == 1:
+            self._prob[(self._prob > 0.0) & (self._prob < 1.0)] = 0.0 # why do i need this when the grids/rows/cols do that for me already?!?!
+
+        # If there are no other possibilities, that means the only number that has a probability is the correct value
+        nonzeros = np.count_nonzero(self._prob)
+        if nonzeros == 1:
+            self._prob[self._prob != 0.0] = 1.0

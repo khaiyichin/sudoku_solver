@@ -6,7 +6,7 @@ class Grid:
         # _n describes the number of cells in the longest dimension of a class
         self._n = int(num)
         self._dim = (self._n, self._n)
-        self._complete_vals = np.full(sum(self._dim), False)
+        self._complete_vals = np.full(np.prod(self._dim), False)
 
     def populate(self, cell_arr):
         self._cells = cell_arr
@@ -44,16 +44,18 @@ class Grid:
         prob_arr = self.get_value_prob(value)
 
         # Get the number of unknowns in the grid
+        # While this would also include instances of 1.0 in the array,
+        # the if loop below doesn't use it if 1.0 is encountered
         unknowns = float(np.count_nonzero(prob_arr != 0.0))
         
-        if 1.0 in prob_arr: # value exists in the grid already
+        # Check if value exists in grid
+        if 1.0 in prob_arr:
             for i in range(self._dim[0]):
                 for j in range(self._dim[1]):
                     if self._cells[i][j].get_value_prob(value) != 1.0:
                         self._cells[i][j].set_value_prob(value, 0.0)
             
             self._complete_vals[value-1] = True
-
         else: # value doesn't exist in the grid
             for i in range(self._dim[0]):
                 for j in range(self._dim[1]):
