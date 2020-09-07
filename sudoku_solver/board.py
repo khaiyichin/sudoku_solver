@@ -7,14 +7,14 @@ from column import Column
 
 '''
 TODO:
-- Solution doesn't work for the 'evil' stage of websudoku!
-- extract board for each solve step to see how to improve solver and solve 'evil' stage.
+- Solution doesn't work for all the 'evil' stage of websudoku, i.e., not robust enough.'
+- Grid class is still a bit incomplete. Look at notes on how to implement the next strategy/feature/solver.
 - for the DEBUG prints, need to have a try catch maybe? at least a termination and error message
-- find out why are we doing Cell.check_and_reset_probability() if the probs get reset already?
 - create a .md to explain the reshape formulas
 - documentation and styling
 - populate_board is incomplete
 '''
+DEBUG_MODE = False
 
 class Board(object):
     def __new__(cls, *args, **kwargs):
@@ -292,7 +292,7 @@ class Board(object):
         # Get the probabilities by horizontal grids
         for i in range(self._board_dim[0]):
             for j in range(self._board_dim[1]):
-                board_prob[i][j] = self._cells[i][j].get_value_prob(value)
+                board_prob[i][j] = self._cells[i][j].get_value_prob('board' ,value)
 
         return board_prob
 
@@ -320,18 +320,68 @@ class Board(object):
                 else:
                     self._cached_prob[val-1] = prob_arr
 
+        
+        # this is called here to synchronize the cell probabilities
+        for cell_row in self._cells:
+            for cell in cell_row:
+                cell.check_and_reset_probabilities()
+
+        # Strategy one: iterate between each board groups
+        # Strategy two: iterate through each board group before moving to next board group.
+
+        # Once converged, strategy two: section probability based elimination
+        for val in range(1, self._n+1):
+            # first evaluate all grids and store that prob
+            # Evaluate the probabilities for a particular value
+            for i in range(self._grid_dim[0]):
+                for j in range(self._grid_dim[1]):
+                    self._grids[i][j].evaluate_value_prob(val)
+            
+            # then check row probs
+            for i in range(self._row_dim[1]):
+                for j in range(self._row_dim[0]):
+                    self._rows[i][j].evaluate_value_prob(val, True)
+
+            # Then check for grids again            
+            for i in range(self._grid_dim[0]):
+                for j in range(self._grid_dim[1]):
+                    self._grids[i][j].evaluate_value_prob(val)
+
+            # then check col probs
+            for i in range(self._col_dim[1]):
+                for j in range(self._col_dim[0]):
+                    self._columns[i][j].evaluate_value_prob(val, True)
+
+        # Strategy 3: based on the three conditions below, any two or more values that have:
+        # 1. the same number of probability occurences
+        # 2. the same location for those occurences
+        # 3. the same probabilities in each of the locations
+        # 4. the sum of each values' probabilities = 1.0
+        # 5. Number of occurences must match number of candidates
+        # then we can cancel all the other values' probabilities that do not satisfy the conditions above in those locations
+        # for i in range(self._grid_dim[0]):
+        #     for j in range(self._grid_dim[1]):
+        #         if i==2 and j==1: print('DEBUG HERERERERaeearsrsareasraserse')
+        #         self._grids[i][j].strategy_3()
+        #         if i==2 and j==1: print('DEBUG done')
+
+        # FOR DEBUG PURPOSES
+        self._grids[2][1].strategy_3()
+
         # Perform validity check for each cell
         for cell_row in self._cells:
             for cell in cell_row:
-                cell.check_and_reset_probability()
+                cell.check_and_reset_probabilities()
 
-    def evaluate_value_prob(self, value): # complete
+        
+
+    def evaluate_value_prob(self, value): # incomplete; run the grid evaluation twice with row once and col once respective after each grid evaluation
         
         # Evaluate the probabilities for a particular value
         for i in range(self._grid_dim[0]):
             for j in range(self._grid_dim[1]):
                 self._grids[i][j].evaluate_value_prob(value)
-                # print('intermediate', i, j, value, self.get_value_prob(value))
+                # if i==2 and j==1:print('intermediate', i, j, value, self.get_value_prob(value))
                 self._rows[self._grid_dim[0]*i + j][0].evaluate_value_prob(value)
                 # print('intermediate', i, j, value, self.get_value_prob(value))
                 self._columns[0][self._grid_dim[0]*i + j].evaluate_value_prob(value)
@@ -347,7 +397,7 @@ class Board(object):
             for j in range(self._board_dim[0]):
                 # Only assign if the value is unfilled and there's a confirmed value in the cell
                 if (self._cells[i][j].get_value() == 0):
-                    prob_array = self._cells[i][j].get_prob_array()
+                    prob_array = self._cells[i][j].get_prob_array('board')
                     
                     # Fill in the value if there's a 100% probability
                     if 1 in prob_array:
@@ -368,6 +418,7 @@ class Board(object):
     def solve_board(self): # should be complete
         
         start_time = time.perf_counter()
+        counter = 0
         while not np.all(self._complete_vals):
             
             # Evaluate probabilities
@@ -375,10 +426,20 @@ class Board(object):
 
             # Update board
             if not self.update():
+
+                # Try strategy one where you evaluate all grid probabilities and then check row and column by sections.
                 end_time = time.perf_counter()
-                print('DEBUG Cannot solve board in ' + str(end_time - start_time) + 's.')
+                print('DEBUG Cannot solve board in ' + str(end_time - start_time) + 's and ' + str(counter) + ' step(s).')
                 return
 
+            counter += 1
+
+            if DEBUG_MODE:
+                board = self.get_values()
+                print('DEBUG MODE: Board after step ' + str(counter) + '.')
+                print(board)
+                print('DEBUG MODE: Filled values = ' + str(np.count_nonzero(board)))
+
         end_time = time.perf_counter()
-        print('Board solved in ' + str(end_time - start_time) + 's!')
+        print('Board solved in ' + str(end_time - start_time) + 's and ' + str(counter) + ' step(s)!')
         return
