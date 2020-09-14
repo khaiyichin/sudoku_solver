@@ -45,23 +45,35 @@ class Cell:
 
     def check_and_reset_probabilities(self):
         # Synchronize all the board and board group probabilities
-        combined_prob = self._prob_arrays_dict['board'] * self._prob_arrays_dict['grid'] * self._prob_arrays_dict['row'] * self._prob_arrays_dict['col']
+        # combined_prob = self._prob_arrays_dict['board'] * self._prob_arrays_dict['grid'] * self._prob_arrays_dict['row'] * self._prob_arrays_dict['col']
         
-        # Probabilities greater than 1 means that the value has been confirmed by at least on board group
-        # Reset any probabilities greater than 1.0 to 1.0
-        combined_prob[combined_prob > 1.0] = 1.0
+        # Synchronize probabilities across different houses (primitive but avoids the negative number multiplication; maybe figure out a better alternative to do this)
+        for ind in range(self._n):
+            pos_confirmation = (self._prob_arrays_dict['grid'][ind] == 1.0) or (self._prob_arrays_dict['row'][ind] == 1.0) or (self._prob_arrays_dict['col'][ind] == 1.0)
+            neg_confirmation = (self._prob_arrays_dict['grid'][ind] == 0.0) or (self._prob_arrays_dict['row'][ind] == 0.0) or (self._prob_arrays_dict['col'][ind] == 0.0)
+            
+            if pos_confirmation:
+                self._prob_arrays_dict['board'][ind] = 1.0
+                self._prob_arrays_dict['grid'][ind] = 1.0
+                self._prob_arrays_dict['row'][ind] = 1.0
+                self._prob_arrays_dict['col'][ind] = 1.0
+            elif neg_confirmation:
+                self._prob_arrays_dict['board'][ind] = 0.0
+                self._prob_arrays_dict['grid'][ind] = 0.0
+                self._prob_arrays_dict['row'][ind] = 0.0
+                self._prob_arrays_dict['col'][ind] = 0.0
 
         # Reset and update the probabilities across different board groups
         for prob_type in self._prob_arrays_dict.keys():
-            self._prob_arrays_dict[prob_type] = combined_prob
+            # self._prob_arrays_dict[prob_type] = combined_prob
 
-            confirmed_num = np.count_nonzero(combined_prob == 1.0)
+            confirmed_num = np.count_nonzero(self._prob_arrays_dict[prob_type] == 1.0)
 
             if confirmed_num > 1: print('ERROR! Cell has more than one value according to its probability array.')
             elif confirmed_num == 1:
-                self._prob_arrays_dict[prob_type][(combined_prob > 0.0) & (combined_prob < 1.0)] = 0.0
+                self._prob_arrays_dict[prob_type][(self._prob_arrays_dict[prob_type] > 0.0) & (self._prob_arrays_dict[prob_type] < 1.0)] = 0.0
 
             # If there are no other possibilities, that means the only number that has a probability is the confirmed value
-            nonzeros = np.count_nonzero(combined_prob)
+            nonzeros = np.count_nonzero(self._prob_arrays_dict[prob_type])
             if nonzeros == 1:
-                self._prob_arrays_dict[prob_type][combined_prob != 0.0] = 1.0
+                self._prob_arrays_dict[prob_type][self._prob_arrays_dict[prob_type] != 0.0] = 1.0

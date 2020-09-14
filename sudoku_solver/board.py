@@ -7,6 +7,7 @@ from column import Column
 
 '''
 TODO:
+- BUG!!!! currently the solver will have repeating values in the row. FIX THIS FIRST!
 - Solution doesn't work for all the 'evil' stage of websudoku, i.e., not robust enough.'
 - Grid class is still a bit incomplete. Look at notes on how to implement the next strategy/feature/solver.
 - for the DEBUG prints, need to have a try catch maybe? at least a termination and error message
@@ -37,7 +38,7 @@ class Board(object):
         self._complete_vals = np.full(self._n, False) # array to keep track of whether the board has filled up all instances of a particular value
         self._converged_prob = np.full(self._n, False)
 
-        # Initialize board groups
+        # Initialize board houses
         self._grids = np.array( [ [ Grid(self._grid_dim[0]) for _ in range(self._grid_dim[0]) ] for _ in range(self._grid_dim[1]) ] )
         self._rows = np.array( [ [ Row(self._row_dim[1]) for _ in range(self._row_dim[0]) ] for _ in range(self._row_dim[1]) ] )
         self._columns = np.array( [ [ Column(self._col_dim[0]) for _ in range(self._col_dim[0]) ] for _ in range(self._col_dim[1]) ] )
@@ -48,7 +49,7 @@ class Board(object):
         else:
             self._cells = np.array( [ [ Cell(self._n) for _ in range(self._n) ] for _ in range(self._n) ] )
 
-        # Populate the board groups to the cells
+        # Populate the board houses to the cells
         self.populate_grids()
         self.populate_rows()
         self.populate_columns()
@@ -206,7 +207,7 @@ class Board(object):
                 print(self._grids[i][j].cells)
 
     def populate_grids(self):  # complete
-        # Split the cells into (sqrt(self._board_dim[0]) x sqrt(self._board_dim[1]) x self._grid_dim[0] x self._grid_dim[1]) groups (grids)
+        # Split the cells into (sqrt(self._board_dim[0]) x sqrt(self._board_dim[1]) x self._grid_dim[0] x self._grid_dim[1]) houses (grids)
         split_cells = self.split_cells('GRID')
 
         # Populate the grids
@@ -215,7 +216,7 @@ class Board(object):
                 self._grids[i][j].populate(split_cells[self._grid_dim[0]*i + j])
 
     def populate_rows(self): # complete
-        # Split the cells into (self._n x self._row_dim[0] x self._row_dim[1]) groups (rows)
+        # Split the cells into (self._n x self._row_dim[0] x self._row_dim[1]) houses (rows)
         split_cells = self.split_cells('ROW')
 
         # Populate the rows in the board
@@ -223,7 +224,7 @@ class Board(object):
             self._rows[i][0].populate(split_cells[i])
 
     def populate_columns(self): # complete
-        # Split the cells into (self._n x self._row_dim[0] x self._row_dim[1]) groups (columns)
+        # Split the cells into (self._n x self._row_dim[0] x self._row_dim[1]) houses (columns)
         split_cells = self.split_cells('COLUMN')
 
         # Populate the rows in the board
@@ -311,8 +312,14 @@ class Board(object):
                 # Evaluate the probabilites of a value
                 self.evaluate_value_prob(val)
 
+                # Need to sync the probabilities to get the correct board prob
+                for cell_row in self._cells:
+                    for cell in cell_row:
+                        cell.check_and_reset_probabilities()
+
                 # Update the board probabilty cache if probabilities not yet converged
                 prob_arr = self.get_value_prob(val)
+                print('DEBUG?!?!', val, np.array2string(prob_arr,max_line_width=np.inf))
 
                 # Check convergence; the probabilities should match up to the maximum number of occurences of a particular value
                 if (prob_arr == self._cached_prob[val-1]).all():
@@ -322,12 +329,13 @@ class Board(object):
 
         
         # this is called here to synchronize the cell probabilities
+        print('DEBUG HEREEE???')
         for cell_row in self._cells:
             for cell in cell_row:
                 cell.check_and_reset_probabilities()
 
-        # Strategy one: iterate between each board groups
-        # Strategy two: iterate through each board group before moving to next board group.
+        # Strategy one: iterate between each houses
+        # Strategy two: iterate through each house before moving to next house.
 
         # Once converged, strategy two: section probability based elimination
         for val in range(1, self._n+1):
@@ -359,16 +367,27 @@ class Board(object):
         # 4. the sum of each values' probabilities = 1.0
         # 5. Number of occurences must match number of candidates
         # then we can cancel all the other values' probabilities that do not satisfy the conditions above in those locations
-        # for i in range(self._grid_dim[0]):
-        #     for j in range(self._grid_dim[1]):
-        #         if i==2 and j==1: print('DEBUG HERERERERaeearsrsareasraserse')
-        #         self._grids[i][j].strategy_3()
-        #         if i==2 and j==1: print('DEBUG done')
+        #!!! this now includes naked strategy as well
+        for i in range(self._grid_dim[0]):
+            for j in range(self._grid_dim[1]):
+                self._grids[i][j].strategy_3()
+
+
+        # row naked strategy
+        for i in range(self._row_dim[1]):
+            for j in range(self._row_dim[0]):
+                if (i,j) == (0, 0): print('DEBUGUGUGUGUGUGUGGUas;ljkdf;askfj;aslkf;lsd')
+                if (i,j) == (0, 0): print(self._rows[i][j].get_values())
+                self._rows[i][j].naked_strategy()
+
+        # print('DEBUG a', np.array2string(self._cells[7][6].get_prob_array('grid'), max_line_width=np.inf))
+        # print('DEBUG b', np.array2string(self._cells[7][7].get_prob_array('grid'), max_line_width=np.inf))
 
         # FOR DEBUG PURPOSES
-        self._grids[2][1].strategy_3()
+        # self._grids[2][1].strategy_3()
 
         # Perform validity check for each cell
+        print('DEBUG OR HEREEE???')
         for cell_row in self._cells:
             for cell in cell_row:
                 cell.check_and_reset_probabilities()
@@ -433,6 +452,9 @@ class Board(object):
                 return
 
             counter += 1
+
+            # DEBUG
+            # if counter == 1: return
 
             if DEBUG_MODE:
                 board = self.get_values()
